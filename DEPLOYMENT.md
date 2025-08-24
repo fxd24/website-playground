@@ -6,15 +6,31 @@
 1. Go to [vercel.com](https://vercel.com)
 2. Sign up with GitHub (recommended)
 
-### Step 2: Generate Vercel Token
-1. Go to [Vercel Dashboard → Account → Tokens](https://vercel.com/account/tokens)
-2. Create new token with name "GitHub Actions"
-3. Copy the token 
+### Step 2: Get Vercel Information
+**Option A: Automated Setup (Recommended)**
+```bash
+cd /Users/davidgraf/repos/website-playground
+./setup-vercel.sh
+```
 
-### Step 3: Add Vercel Token to GitHub
+**Option B: Manual Setup**
+1. **Generate Vercel Token:**
+   - Go to [Vercel Dashboard → Account → Tokens](https://vercel.com/account/tokens)
+   - Create new token with name "GitHub Actions"
+   - Copy the token
+
+2. **Get Organization and Project IDs:**
+   - Run `vercel login` in your terminal
+   - Run `vercel link` in your project directory
+   - This will create a `.vercel` folder with `project.json`
+   - Copy the `orgId` and `projectId` from `.vercel/project.json` 
+
+### Step 3: Add Vercel Secrets to GitHub
 1. Go to your GitHub repo → Settings → Secrets and variables → Actions
-2. Add new secret named `VERCEL_TOKEN`
-3. Paste your Vercel token as the value
+2. Add the following secrets:
+   - `VERCEL_TOKEN`: Your Vercel deployment token
+   - `VERCEL_ORG_ID`: Your Vercel organization ID
+   - `VERCEL_PROJECT_ID`: Your Vercel project ID
 
 ### Step 4: Deploy
 1. Push your code to GitHub main branch
@@ -142,6 +158,47 @@ After deployment, monitor:
 1. **Build fails**: Check that all dependencies are in `package.json`
 2. **DNS not working**: Wait 24-48 hours for propagation
 3. **Environment variables**: Ensure they're set in deployment platform
+
+## Alternative: Simple Vercel Deployment
+
+If you prefer a simpler approach without GitHub Actions:
+
+### Step 1: Install Vercel CLI
+```bash
+npm install -g vercel
+```
+
+### Step 2: Deploy Directly
+```bash
+cd /Users/davidgraf/repos/website-playground
+vercel login
+vercel --prod
+```
+
+### Step 3: Set Environment Variables
+```bash
+vercel env add VERCEL_TOKEN
+vercel env add VERCEL_ORG_ID
+vercel env add VERCEL_PROJECT_ID
+```
+
+This approach is simpler but requires manual deployment each time.
+
+## Troubleshooting
+
+### Common Issues:
+
+1. **Missing Secrets:**
+   - Make sure all three secrets are set in GitHub Actions
+   - Check that the secret names match exactly
+
+2. **Vercel CLI Issues:**
+   - Run `vercel login` first
+   - Run `vercel link` to connect the project
+
+3. **Build Failures:**
+   - Check that all dependencies are in `package.json`
+   - Verify the build works locally with `npm run build`
 
 ### Support:
 - Vercel: [vercel.com/docs](https://vercel.com/docs)
