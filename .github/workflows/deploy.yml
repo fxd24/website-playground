@@ -32,8 +32,8 @@ jobs:
     - name: Install Vercel CLI
       run: npm install --global vercel@latest
 
-    - name: Build Project Artifacts
-      run: npm run build
+    - name: Build Project Artifacts for Vercel
+      run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
     - name: Deploy Project Artifacts to Vercel
       run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
@@ -55,11 +55,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Build application
-      run: npm run build
-
     - name: Install Vercel CLI
       run: npm install --global vercel@latest
+
+    - name: Build application for Vercel
+      run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
 
     - name: Deploy Project Artifacts to Vercel
       run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
