@@ -69,7 +69,7 @@ export default function JobSchedulingPage() {
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
-  const [conflicts, setConflicts] = useState<any[]>([]);
+  const [conflicts, setConflicts] = useState<{ jobId: string; memberId: string; conflictTime: Date }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   // Get jobs that need scheduling (Planned or Scheduled status)
@@ -210,7 +210,7 @@ export default function JobSchedulingPage() {
           <p className="text-muted-foreground">Schedule jobs and assign team members</p>
         </div>
         <div className="flex items-center gap-4">
-          <Select value={viewMode} onValueChange={(value: any) => setViewMode(value)}>
+          <Select value={viewMode} onValueChange={(value: 'day' | 'week' | 'month' | 'kanban') => setViewMode(value)}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>

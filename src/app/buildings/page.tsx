@@ -307,7 +307,7 @@ export default function BuildingsPage() {
           {!searchTerm && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                Click the "Add Building" button above to get started
+                Click the &quot;Add Building&quot; button above to get started
               </p>
             </div>
           )}

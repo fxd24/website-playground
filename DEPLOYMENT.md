@@ -9,7 +9,7 @@
 ### Step 2: Generate Vercel Token
 1. Go to [Vercel Dashboard → Account → Tokens](https://vercel.com/account/tokens)
 2. Create new token with name "GitHub Actions"
-3. Copy the token
+3. Copy the token 
 
 ### Step 3: Add Vercel Token to GitHub
 1. Go to your GitHub repo → Settings → Secrets and variables → Actions
