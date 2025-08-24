@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search,
   Plus,
@@ -24,11 +25,24 @@ import {
 } from "lucide-react";
 import { useApp } from "@/lib/context";
 import { Building, Client, Job } from "@/lib/types";
+import { BuildingService } from "@/lib/mock-services";
 import { motion } from "framer-motion";
 
 export default function BuildingsPage() {
   const { buildings, clients, jobs, isLoadingBuildings } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Building creation state
+  const [showBuildingDialog, setShowBuildingDialog] = useState(false);
+  const [newBuildingData, setNewBuildingData] = useState({
+    clientId: "",
+    name: "",
+    street: "",
+    city: "",
+    postalCode: "",
+    country: "Switzerland",
+    accessInfo: ""
+  });
 
   const filteredBuildings = buildings.filter(building => {
     const client = clients.find(c => c.id === building.clientId);
@@ -49,6 +63,44 @@ export default function BuildingsPage() {
       activeJobs,
       totalValue
     };
+  };
+
+  // Handle building creation
+  const handleCreateBuilding = async () => {
+    if (!newBuildingData.clientId || !newBuildingData.name) return;
+
+    try {
+      const newBuilding = await BuildingService.create({
+        clientId: newBuildingData.clientId,
+        name: newBuildingData.name,
+        address: {
+          street: newBuildingData.street,
+          city: newBuildingData.city,
+          postalCode: newBuildingData.postalCode,
+          country: newBuildingData.country
+        },
+        accessInfo: newBuildingData.accessInfo || undefined,
+        photos: [],
+        contacts: []
+      });
+
+      // Reset form
+      setNewBuildingData({
+        clientId: "",
+        name: "",
+        street: "",
+        city: "",
+        postalCode: "",
+        country: "Switzerland",
+        accessInfo: ""
+      });
+
+      setShowBuildingDialog(false);
+
+      // The context should automatically update with the new building
+    } catch (error) {
+      console.error('Error creating building:', error);
+    }
   };
 
   // Calculate overall statistics
@@ -79,65 +131,10 @@ export default function BuildingsPage() {
           <h1 className="text-3xl font-bold">Buildings & Sites</h1>
           <p className="text-muted-foreground">Manage your building locations and site information</p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Building
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Building</DialogTitle>
-              <DialogDescription>
-                Add a new building or site to your portfolio
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Building Name</Label>
-                <Input id="name" placeholder="Main Office Building" />
-              </div>
-              <div>
-                <Label htmlFor="client">Client</Label>
-                <select className="w-full p-2 border rounded-md" id="client">
-                  <option value="">Select a client</option>
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="street">Street Address</Label>
-                  <Input id="street" placeholder="Bahnhofstrasse 1" />
-                </div>
-                <div>
-                  <Label htmlFor="city">City</Label>
-                  <Input id="city" placeholder="Zürich" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="postalCode">Postal Code</Label>
-                  <Input id="postalCode" placeholder="8001" />
-                </div>
-                <div>
-                  <Label htmlFor="country">Country</Label>
-                  <Input id="country" placeholder="Switzerland" />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="access">Access Information</Label>
-                <Textarea
-                  id="access"
-                  placeholder="Main entrance, security code, access hours..."
-                />
-              </div>
-              <Button className="w-full">Add Building</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setShowBuildingDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Building
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -308,13 +305,117 @@ export default function BuildingsPage() {
             {searchTerm ? "No buildings found" : "No buildings yet"}
           </p>
           {!searchTerm && (
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add First Building
-            </Button>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Click the "Add Building" button above to get started
+              </p>
+            </div>
           )}
         </div>
       )}
+
+      {/* Building Creation Dialog */}
+      <Dialog open={showBuildingDialog} onOpenChange={setShowBuildingDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Building</DialogTitle>
+            <DialogDescription>
+              Create a new building for your portfolio
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="client">Client</Label>
+              <Select
+                value={newBuildingData.clientId}
+                onValueChange={(value) => setNewBuildingData(prev => ({ ...prev, clientId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="buildingName">Building Name</Label>
+              <Input
+                id="buildingName"
+                value={newBuildingData.name}
+                onChange={(e) => setNewBuildingData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Main Office Building"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="buildingStreet">Street Address</Label>
+              <Input
+                id="buildingStreet"
+                value={newBuildingData.street}
+                onChange={(e) => setNewBuildingData(prev => ({ ...prev, street: e.target.value }))}
+                placeholder="Bahnhofstrasse 1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="buildingCity">City</Label>
+                <Input
+                  id="buildingCity"
+                  value={newBuildingData.city}
+                  onChange={(e) => setNewBuildingData(prev => ({ ...prev, city: e.target.value }))}
+                  placeholder="Zürich"
+                />
+              </div>
+              <div>
+                <Label htmlFor="buildingPostalCode">Postal Code</Label>
+                <Input
+                  id="buildingPostalCode"
+                  value={newBuildingData.postalCode}
+                  onChange={(e) => setNewBuildingData(prev => ({ ...prev, postalCode: e.target.value }))}
+                  placeholder="8001"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="buildingCountry">Country</Label>
+              <Input
+                id="buildingCountry"
+                value={newBuildingData.country}
+                onChange={(e) => setNewBuildingData(prev => ({ ...prev, country: e.target.value }))}
+                placeholder="Switzerland"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="buildingAccessInfo">Access Information</Label>
+              <Textarea
+                id="buildingAccessInfo"
+                value={newBuildingData.accessInfo}
+                onChange={(e) => setNewBuildingData(prev => ({ ...prev, accessInfo: e.target.value }))}
+                placeholder="Main entrance, security code, access hours..."
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={handleCreateBuilding} className="flex-1">
+                Create Building
+              </Button>
+              <Button variant="outline" onClick={() => setShowBuildingDialog(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

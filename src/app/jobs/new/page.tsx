@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,8 +51,11 @@ export default function NewJobPage() {
     isLoadingBuildings
   } = useApp();
 
+  const searchParams = useSearchParams();
+  const quoteId = searchParams.get('quoteId');
+
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
-  const [showQuoteSelector, setShowQuoteSelector] = useState(true);
+  const [showQuoteSelector, setShowQuoteSelector] = useState(!quoteId);
   const [quoteSearchTerm, setQuoteSearchTerm] = useState("");
 
   // Job form data
@@ -67,6 +71,17 @@ export default function NewJobPage() {
 
   // Tasks data
   const [tasks, setTasks] = useState<Task[]>([]);
+
+  // Auto-select quote if quoteId is provided
+  useEffect(() => {
+    if (quoteId && quotes.length > 0) {
+      const quote = quotes.find(q => q.id === quoteId && q.status === 'Accepted');
+      if (quote) {
+        setSelectedQuote(quote);
+        setShowQuoteSelector(false);
+      }
+    }
+  }, [quoteId, quotes]);
 
   // Get accepted quotes for selection
   const acceptedQuotes = quotes.filter(quote => quote.status === 'Accepted');

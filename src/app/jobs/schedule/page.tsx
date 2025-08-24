@@ -28,12 +28,14 @@ import {
   Star,
   Award,
   Phone,
-  Mail
+  Mail,
+  GripVertical
 } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from "date-fns";
 import { useApp } from "@/lib/context";
 import { Job, TeamMember, Client, Building, JobStatus } from "@/lib/types";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 const statusColors: Record<JobStatus, string> = {
   Planned: "bg-blue-100 text-blue-800",
@@ -63,7 +65,7 @@ export default function JobSchedulingPage() {
   } = useApp();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month' | 'kanban'>('kanban');
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
@@ -158,6 +160,32 @@ export default function JobSchedulingPage() {
     });
   };
 
+  // Handle drag and drop
+  const handleDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    if (!destination) return;
+
+    if (destination.droppableId === source.droppableId && destination.index === source.index) {
+      return;
+    }
+
+    const jobId = draggableId;
+    const newStatus = destination.droppableId as JobStatus;
+
+    // Update job status
+    const updatedJob = await updateJobStatus(jobId, newStatus);
+    if (updatedJob) {
+      // Update local state
+      setSelectedJob(updatedJob);
+    }
+  };
+
+  // Get jobs by status for kanban columns
+  const getJobsByStatus = (status: JobStatus) => {
+    return filteredJobs.filter(job => job.status === status);
+  };
+
   if (isLoadingJobs || isLoadingTeamMembers) {
     return (
       <div className="p-6">
@@ -187,6 +215,7 @@ export default function JobSchedulingPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="kanban">Kanban</SelectItem>
               <SelectItem value="day">Day</SelectItem>
               <SelectItem value="week">Week</SelectItem>
               <SelectItem value="month">Month</SelectItem>
@@ -263,7 +292,181 @@ export default function JobSchedulingPage() {
       <div className="grid gap-6 lg:grid-cols-4">
         {/* Main Calendar View */}
         <div className="lg:col-span-3">
-          {viewMode === 'week' ? (
+          ) : viewMode === 'kanban' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Planned Column */}
+              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-sm text-blue-800">Planned</h3>
+                  <Badge className={statusColors.Planned}>{getJobsByStatus('Planned').length}</Badge>
+                </div>
+                <div className="space-y-2 min-h-[400px]">
+                  {getJobsByStatus('Planned').map((job) => (
+                    <motion.div
+                      key={job.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedJob(job)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {clients.find(c => c.id === job.clientId)?.name}
+                          </div>
+                        </div>
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
+                          {job.estimatedCost && (
+                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
+                          )}
+                        </div>
+                        {job.assignedTeam && job.assignedTeam.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Scheduled Column */}
+              <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-sm text-purple-800">Scheduled</h3>
+                  <Badge className={statusColors.Scheduled}>{getJobsByStatus('Scheduled').length}</Badge>
+                </div>
+                <div className="space-y-2 min-h-[400px]">
+                  {getJobsByStatus('Scheduled').map((job) => (
+                    <motion.div
+                      key={job.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedJob(job)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {clients.find(c => c.id === job.clientId)?.name}
+                          </div>
+                        </div>
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
+                          {job.estimatedCost && (
+                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
+                          )}
+                        </div>
+                        {job.assignedTeam && job.assignedTeam.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* In Progress Column */}
+              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-sm text-green-800">In Progress</h3>
+                  <Badge className={statusColors.InProgress}>{getJobsByStatus('InProgress').length}</Badge>
+                </div>
+                <div className="space-y-2 min-h-[400px]">
+                  {getJobsByStatus('InProgress').map((job) => (
+                    <motion.div
+                      key={job.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedJob(job)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {clients.find(c => c.id === job.clientId)?.name}
+                          </div>
+                        </div>
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
+                          {job.estimatedCost && (
+                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
+                          )}
+                        </div>
+                        {job.assignedTeam && job.assignedTeam.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Completed Column */}
+              <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-sm text-gray-800">Completed</h3>
+                  <Badge className={statusColors.Completed}>{getJobsByStatus('Completed').length}</Badge>
+                </div>
+                <div className="space-y-2 min-h-[400px]">
+                  {getJobsByStatus('Completed').map((job) => (
+                    <motion.div
+                      key={job.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedJob(job)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {clients.find(c => c.id === job.clientId)?.name}
+                          </div>
+                        </div>
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
+                          {job.estimatedCost && (
+                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
+                          )}
+                        </div>
+                        {job.assignedTeam && job.assignedTeam.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : viewMode === 'week' ? (
             <Card>
               <CardHeader>
                 <CardTitle>Weekly Schedule</CardTitle>
@@ -379,7 +582,6 @@ export default function JobSchedulingPage() {
                 </div>
               </CardContent>
             </Card>
-          )}
         </div>
 
         {/* Sidebar */}
@@ -539,46 +741,6 @@ export default function JobSchedulingPage() {
               </div>
 
               <Separator />
-
-              <div>
-                <Label className="text-base font-medium">Team Assignment</Label>
-                <div className="mt-3 space-y-3">
-                  {teamMembers.map((member) => {
-                    const isAssigned = selectedJob.assignedTeam?.includes(member.id) || false;
-                    const conflicts = checkConflicts(selectedJob, member.id);
-                    const availability = calculateAvailability[member.id];
-
-                    return (
-                      <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isAssigned}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                assignTeamMember(selectedJob.id, member.id);
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <div>
-                            <div className="font-medium">{member.name}</div>
-                            <div className="text-sm text-muted-foreground">{member.role}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {conflicts.length > 0 && (
-                            <AlertTriangle className="h-4 w-4 text-orange-500" />
-                          )}
-                          {!availability?.available && (
-                            <AlertCircle className="h-4 w-4 text-red-500" />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSelectedJob(null)}>

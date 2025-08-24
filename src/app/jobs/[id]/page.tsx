@@ -443,27 +443,70 @@ export default function JobDetailPage() {
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Add Note
                   </Button>
+                  {job.status === 'Completed' && (
+                    <Button variant="outline" className="w-full justify-start">
+                      <FileText className="h-4 w-4 mr-2" />
+                      Generate Invoice
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
-              {job.assignedTeam && job.assignedTeam.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Assigned Team</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {job.assignedTeam.map(memberId => {
-                      const member = teamMembers.find(m => m.id === memberId);
-                      return member ? (
-                        <div key={memberId} className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">{member.name}</span>
-                        </div>
-                      ) : null;
-                    })}
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Team Assignment</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {job.assignedTeam && job.assignedTeam.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Assigned Team:</div>
+                      {job.assignedTeam.map(memberId => {
+                        const member = teamMembers.find(m => m.id === memberId);
+                        return member ? (
+                          <div key={memberId} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{member.name}</span>
+                              <span className="text-xs text-muted-foreground">({member.role})</span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                // Remove team member functionality would go here
+                              }}
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No team members assigned yet.</p>
+                  )}
+
+                  <div className="pt-2 border-t">
+                    <Select onValueChange={(memberId) => {
+                      // Add team member functionality would go here
+                      console.log('Adding member:', memberId);
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Add team member..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teamMembers
+                          .filter(member => !job.assignedTeam?.includes(member.id))
+                          .map(member => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name} - {member.role}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </TabsContent>

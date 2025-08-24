@@ -639,6 +639,8 @@ export class InvoiceService {
     console.log(`Mock email sent for invoice ${id} using template: ${template}`);
     return true;
   }
+
+
 }
 
 // Supplier services

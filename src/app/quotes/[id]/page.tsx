@@ -190,6 +190,12 @@ export default function QuotePage() {
             <StatusIcon className="h-3 w-3 mr-1" />
             {quote.status}
           </Badge>
+          {quote.status === 'Accepted' && (
+            <Button onClick={() => router.push(`/jobs/new?quoteId=${quote.id}`)}>
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Convert to Job
+            </Button>
+          )}
         </div>
       </div>
 

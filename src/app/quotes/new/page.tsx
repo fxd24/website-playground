@@ -58,6 +58,17 @@ export default function NewQuotePage() {
     country: "Switzerland"
   });
 
+  // New building dialog state
+  const [newBuildingDialogOpen, setNewBuildingDialogOpen] = useState(false);
+  const [newBuildingData, setNewBuildingData] = useState({
+    name: "",
+    street: "",
+    city: "",
+    postalCode: "",
+    country: "Switzerland",
+    accessInfo: ""
+  });
+
   const selectedClient = formData.clientId ?
     searchedClients.find(c => c.id === formData.clientId) : null;
 
@@ -138,6 +149,43 @@ export default function NewQuotePage() {
       });
     } catch (error) {
       console.error('Error creating client:', error);
+    }
+  };
+
+  // Create new building
+  const handleCreateBuilding = async () => {
+    if (!formData.clientId) return;
+
+    try {
+      const newBuilding = await BuildingService.create({
+        clientId: formData.clientId,
+        name: newBuildingData.name,
+        address: {
+          street: newBuildingData.street,
+          city: newBuildingData.city,
+          postalCode: newBuildingData.postalCode,
+          country: newBuildingData.country
+        },
+        accessInfo: newBuildingData.accessInfo || undefined,
+        photos: [],
+        contacts: []
+      });
+
+      setAvailableBuildings(prev => [...prev, newBuilding]);
+      setFormData(prev => ({ ...prev, buildingId: newBuilding.id }));
+      setNewBuildingDialogOpen(false);
+
+      // Reset form
+      setNewBuildingData({
+        name: "",
+        street: "",
+        city: "",
+        postalCode: "",
+        country: "Switzerland",
+        accessInfo: ""
+      });
+    } catch (error) {
+      console.error('Error creating building:', error);
     }
   };
 
@@ -405,6 +453,93 @@ export default function NewQuotePage() {
                   <p className="text-sm text-muted-foreground">No buildings found for this client</p>
                 </div>
               )}
+
+              {/* New Building Button */}
+              <div className="pt-2 border-t">
+                <Dialog open={newBuildingDialogOpen} onOpenChange={setNewBuildingDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Building
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Building</DialogTitle>
+                      <DialogDescription>
+                        Create a new building for {selectedClient?.name}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="buildingName">Building Name</Label>
+                        <Input
+                          id="buildingName"
+                          value={newBuildingData.name}
+                          onChange={(e) => setNewBuildingData(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Main Office Building"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="buildingStreet">Street Address</Label>
+                        <Input
+                          id="buildingStreet"
+                          value={newBuildingData.street}
+                          onChange={(e) => setNewBuildingData(prev => ({ ...prev, street: e.target.value }))}
+                          placeholder="Bahnhofstrasse 1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="buildingCity">City</Label>
+                          <Input
+                            id="buildingCity"
+                            value={newBuildingData.city}
+                            onChange={(e) => setNewBuildingData(prev => ({ ...prev, city: e.target.value }))}
+                            placeholder="Zürich"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="buildingPostalCode">Postal Code</Label>
+                          <Input
+                            id="buildingPostalCode"
+                            value={newBuildingData.postalCode}
+                            onChange={(e) => setNewBuildingData(prev => ({ ...prev, postalCode: e.target.value }))}
+                            placeholder="8001"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="buildingCountry">Country</Label>
+                        <Input
+                          id="buildingCountry"
+                          value={newBuildingData.country}
+                          onChange={(e) => setNewBuildingData(prev => ({ ...prev, country: e.target.value }))}
+                          placeholder="Switzerland"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="buildingAccessInfo">Access Information</Label>
+                        <Textarea
+                          id="buildingAccessInfo"
+                          value={newBuildingData.accessInfo}
+                          onChange={(e) => setNewBuildingData(prev => ({ ...prev, accessInfo: e.target.value }))}
+                          placeholder="Main entrance, security code, access hours..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleCreateBuilding} className="flex-1">
+                          Create Building
+                        </Button>
+                        <Button variant="outline" onClick={() => setNewBuildingDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

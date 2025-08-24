@@ -110,57 +110,65 @@ export default function Dashboard() {
 
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Draft Quotes</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingQuotes ? "..." : draftQuotes}</div>
-            <p className="text-xs text-muted-foreground">
-              Ready to send
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/quotes">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Draft Quotes</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoadingQuotes ? "..." : draftQuotes}</div>
+              <p className="text-xs text-muted-foreground">
+                Ready to send
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sent Quotes</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingQuotes ? "..." : sentQuotes}</div>
-            <p className="text-xs text-muted-foreground">
-              Awaiting response
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/quotes">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sent Quotes</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoadingQuotes ? "..." : sentQuotes}</div>
+              <p className="text-xs text-muted-foreground">
+                Awaiting response
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingClients ? "..." : totalClients}</div>
-            <p className="text-xs text-muted-foreground">
-              Active clients
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/clients">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoadingClients ? "..." : totalClients}</div>
+              <p className="text-xs text-muted-foreground">
+                Active clients
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Quotes</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingQuotes ? "..." : recentQuotes}</div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/quotes">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Recent Quotes</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoadingQuotes ? "..." : recentQuotes}</div>
+              <p className="text-xs text-muted-foreground">
+                Last 7 days
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Recent Activity */}
@@ -174,22 +182,24 @@ export default function Dashboard() {
         <CardContent>
           <div className="space-y-4">
             {quotes.slice(0, 5).map((quote) => (
-              <div key={quote.id} className="flex items-center space-x-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                  <FileText className="h-4 w-4" />
+              <Link key={quote.id} href={`/quotes/${quote.id}`}>
+                <div className="flex items-center space-x-4 hover:bg-muted/50 rounded-lg p-3 cursor-pointer transition-colors">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      Quote #{quote.id.split('-')[1]} - {quote.status}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Created {quote.createdAt.toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-sm font-medium">
+                    CHF {quote.total.toLocaleString()}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    Quote #{quote.id.split('-')[1]} - {quote.status}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Created {quote.createdAt.toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="text-sm font-medium">
-                  CHF {quote.total.toLocaleString()}
-                </div>
-              </div>
+              </Link>
             ))}
           </div>
         </CardContent>

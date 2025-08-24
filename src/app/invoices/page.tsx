@@ -387,6 +387,8 @@ export default function InvoicesPage() {
                         </Button>
                       )}
 
+
+
                       <Button variant="outline" size="sm">
                         <Eye className="h-3 w-3 mr-1" />
                         View Details
@@ -483,6 +485,8 @@ export default function InvoicesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }
