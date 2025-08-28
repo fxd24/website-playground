@@ -11,6 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -29,22 +31,15 @@ import {
   Award,
   Phone,
   Mail,
-  GripVertical
+
 } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from "date-fns";
 import { useApp } from "@/lib/context";
 import { Job, TeamMember, Client, Building, JobStatus } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
-const statusColors: Record<JobStatus, string> = {
-  Planned: "bg-blue-100 text-blue-800",
-  Scheduled: "bg-purple-100 text-purple-800",
-  InProgress: "bg-green-100 text-green-800",
-  Blocked: "bg-red-100 text-red-800",
-  Completed: "bg-gray-100 text-gray-800",
-  Archived: "bg-gray-100 text-gray-600"
-};
+
+
 
 const priorityColors = {
   low: "bg-gray-100 text-gray-800",
@@ -60,17 +55,21 @@ export default function JobSchedulingPage() {
     clients,
     buildings,
     updateJobStatus,
+    assignTeamMember,
+    updateJobScheduling,
     isLoadingJobs,
     isLoadingTeamMembers
   } = useApp();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month' | 'kanban'>('kanban');
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
+  const [showSchedulingDialog, setShowSchedulingDialog] = useState(false);
   const [conflicts, setConflicts] = useState<{ jobId: string; memberId: string; conflictTime: Date }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [schedulingJob, setSchedulingJob] = useState<Job | null>(null);
 
   // Get jobs that need scheduling (Planned or Scheduled status)
   const schedulableJobs = jobs.filter(job =>
@@ -87,7 +86,7 @@ export default function JobSchedulingPage() {
 
   // Calculate team availability and conflicts
   const calculateAvailability = useMemo(() => {
-    const availability: Record<string, { available: boolean; conflicts: any[] }> = {};
+    const availability: Record<string, { available: boolean; conflicts: any[]; utilization: number }> = {};
 
     teamMembers.forEach(member => {
       const memberJobs = jobs.filter(job =>
@@ -98,21 +97,57 @@ export default function JobSchedulingPage() {
         job.status !== 'Archived'
       );
 
-      const hasConflict = memberJobs.some(job => {
+      // Check for conflicts on the selected date
+      const dayConflicts = memberJobs.filter(job => {
         if (!job.scheduledStartDate || !job.scheduledEndDate) return false;
         const jobStart = new Date(job.scheduledStartDate);
         const jobEnd = new Date(job.scheduledEndDate);
-        return selectedDate >= jobStart && selectedDate <= jobEnd;
+
+        // Check if the selected date overlaps with the job period
+        const selectedDateStart = new Date(selectedDate);
+        selectedDateStart.setHours(0, 0, 0, 0);
+        const selectedDateEnd = new Date(selectedDate);
+        selectedDateEnd.setHours(23, 59, 59, 999);
+
+        return (jobStart <= selectedDateEnd && jobEnd >= selectedDateStart);
       });
 
+      // Calculate utilization for the week containing selectedDate
+      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
+
+      const weekJobs = memberJobs.filter(job => {
+        if (!job.scheduledStartDate || !job.scheduledEndDate) return false;
+        const jobStart = new Date(job.scheduledStartDate);
+        const jobEnd = new Date(job.scheduledEndDate);
+        return (jobStart <= weekEnd && jobEnd >= weekStart);
+      });
+
+      // Calculate total hours for the week
+      const totalWeekHours = weekJobs.reduce((total, job) => {
+        if (!job.scheduledStartDate || !job.scheduledEndDate || !job.laborHours) return total;
+        const jobStart = new Date(job.scheduledStartDate);
+        const jobEnd = new Date(job.scheduledEndDate);
+
+        // Calculate overlapping hours with the week
+        const overlapStart = jobStart < weekStart ? weekStart : jobStart;
+        const overlapEnd = jobEnd > weekEnd ? weekEnd : jobEnd;
+
+        if (overlapStart < overlapEnd) {
+          const overlapHours = (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60);
+          return total + Math.min(overlapHours, job.laborHours);
+        }
+        return total;
+      }, 0);
+
+      // Assume 40 working hours per week for utilization calculation
+      const weeklyCapacity = 40;
+      const utilization = Math.min((totalWeekHours / weeklyCapacity) * 100, 100);
+
       availability[member.id] = {
-        available: !hasConflict,
-        conflicts: memberJobs.filter(job => {
-          if (!job.scheduledStartDate || !job.scheduledEndDate) return false;
-          const jobStart = new Date(job.scheduledStartDate);
-          const jobEnd = new Date(job.scheduledEndDate);
-          return selectedDate >= jobStart && selectedDate <= jobEnd;
-        })
+        available: dayConflicts.length === 0,
+        conflicts: dayConflicts,
+        utilization: Math.round(utilization)
       };
     });
 
@@ -134,10 +169,30 @@ export default function JobSchedulingPage() {
     return eachDayOfInterval({ start, end });
   };
 
-  const assignTeamMember = (jobId: string, memberId: string) => {
-    // In a real implementation, this would call an API
-    console.log(`Assigning member ${memberId} to job ${jobId}`);
-    // Update local state for demo purposes
+  const handleAssignTeamMember = async (jobId: string, memberId: string, action: 'add' | 'remove' = 'add') => {
+    try {
+      await assignTeamMember(jobId, memberId, action);
+      // The job state will be updated automatically through the context
+    } catch (error) {
+      console.error('Error assigning team member:', error);
+    }
+  };
+
+  const handleScheduleJob = (job: Job) => {
+    setSchedulingJob(job);
+    setShowSchedulingDialog(true);
+  };
+
+  const handleSaveScheduling = async (data: { scheduledStartDate?: Date; scheduledEndDate?: Date; status?: JobStatus }) => {
+    if (!schedulingJob) return;
+
+    try {
+      await updateJobScheduling(schedulingJob.id, data);
+      setShowSchedulingDialog(false);
+      setSchedulingJob(null);
+    } catch (error) {
+      console.error('Error updating job scheduling:', error);
+    }
   };
 
   const checkConflicts = (job: Job, memberId: string) => {
@@ -146,7 +201,8 @@ export default function JobSchedulingPage() {
       j.id !== job.id &&
       j.scheduledStartDate &&
       j.scheduledEndDate &&
-      j.status !== 'Completed'
+      j.status !== 'Completed' &&
+      j.status !== 'Archived'
     );
 
     return memberJobs.filter(j => {
@@ -156,35 +212,14 @@ export default function JobSchedulingPage() {
       const newStart = new Date(job.scheduledStartDate!);
       const newEnd = new Date(job.scheduledEndDate!);
 
-      return (newStart <= existingEnd && newEnd >= existingStart);
+      // Check for time overlap
+      return (newStart < existingEnd && newEnd > existingStart);
     });
   };
 
-  // Handle drag and drop
-  const handleDragEnd = async (result: DropResult) => {
-    const { destination, source, draggableId } = result;
 
-    if (!destination) return;
 
-    if (destination.droppableId === source.droppableId && destination.index === source.index) {
-      return;
-    }
 
-    const jobId = draggableId;
-    const newStatus = destination.droppableId as JobStatus;
-
-    // Update job status
-    const updatedJob = await updateJobStatus(jobId, newStatus);
-    if (updatedJob) {
-      // Update local state
-      setSelectedJob(updatedJob);
-    }
-  };
-
-  // Get jobs by status for kanban columns
-  const getJobsByStatus = (status: JobStatus) => {
-    return filteredJobs.filter(job => job.status === status);
-  };
 
   if (isLoadingJobs || isLoadingTeamMembers) {
     return (
@@ -210,18 +245,18 @@ export default function JobSchedulingPage() {
           <p className="text-muted-foreground">Schedule jobs and assign team members</p>
         </div>
         <div className="flex items-center gap-4">
-          <Select value={viewMode} onValueChange={(value: 'day' | 'week' | 'month' | 'kanban') => setViewMode(value)}>
+          <Select value={viewMode} onValueChange={(value: 'day' | 'week' | 'month') => setViewMode(value)}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="kanban">Kanban</SelectItem>
+
               <SelectItem value="day">Day</SelectItem>
               <SelectItem value="week">Week</SelectItem>
               <SelectItem value="month">Month</SelectItem>
             </SelectContent>
           </Select>
-          <Button>
+          <Button onClick={() => setShowSchedulingDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Schedule Job
           </Button>
@@ -292,181 +327,7 @@ export default function JobSchedulingPage() {
       <div className="grid gap-6 lg:grid-cols-4">
         {/* Main Calendar View */}
         <div className="lg:col-span-3">
-          ) : viewMode === 'kanban' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Planned Column */}
-              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-sm text-blue-800">Planned</h3>
-                  <Badge className={statusColors.Planned}>{getJobsByStatus('Planned').length}</Badge>
-                </div>
-                <div className="space-y-2 min-h-[400px]">
-                  {getJobsByStatus('Planned').map((job) => (
-                    <motion.div
-                      key={job.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setSelectedJob(job)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {clients.find(c => c.id === job.clientId)?.name}
-                          </div>
-                        </div>
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
-                          {job.estimatedCost && (
-                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
-                          )}
-                        </div>
-                        {job.assignedTeam && job.assignedTeam.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Scheduled Column */}
-              <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-sm text-purple-800">Scheduled</h3>
-                  <Badge className={statusColors.Scheduled}>{getJobsByStatus('Scheduled').length}</Badge>
-                </div>
-                <div className="space-y-2 min-h-[400px]">
-                  {getJobsByStatus('Scheduled').map((job) => (
-                    <motion.div
-                      key={job.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setSelectedJob(job)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {clients.find(c => c.id === job.clientId)?.name}
-                          </div>
-                        </div>
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
-                          {job.estimatedCost && (
-                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
-                          )}
-                        </div>
-                        {job.assignedTeam && job.assignedTeam.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              {/* In Progress Column */}
-              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-sm text-green-800">In Progress</h3>
-                  <Badge className={statusColors.InProgress}>{getJobsByStatus('InProgress').length}</Badge>
-                </div>
-                <div className="space-y-2 min-h-[400px]">
-                  {getJobsByStatus('InProgress').map((job) => (
-                    <motion.div
-                      key={job.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setSelectedJob(job)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {clients.find(c => c.id === job.clientId)?.name}
-                          </div>
-                        </div>
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
-                          {job.estimatedCost && (
-                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
-                          )}
-                        </div>
-                        {job.assignedTeam && job.assignedTeam.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Completed Column */}
-              <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-sm text-gray-800">Completed</h3>
-                  <Badge className={statusColors.Completed}>{getJobsByStatus('Completed').length}</Badge>
-                </div>
-                <div className="space-y-2 min-h-[400px]">
-                  {getJobsByStatus('Completed').map((job) => (
-                    <motion.div
-                      key={job.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-white border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setSelectedJob(job)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm line-clamp-2">{job.title}</h4>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {clients.find(c => c.id === job.clientId)?.name}
-                          </div>
-                        </div>
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <Badge className={priorityColors[job.priority]}>{job.priority}</Badge>
-                          {job.estimatedCost && (
-                            <span className="font-medium">CHF {job.estimatedCost.toLocaleString()}</span>
-                          )}
-                        </div>
-                        {job.assignedTeam && job.assignedTeam.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs">{job.assignedTeam.length} assigned</span>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : viewMode === 'week' ? (
+          {viewMode === 'week' ? (
             <Card>
               <CardHeader>
                 <CardTitle>Weekly Schedule</CardTitle>
@@ -500,6 +361,53 @@ export default function JobSchedulingPage() {
                           {dayJobs.length > 3 && (
                             <div className="text-xs text-muted-foreground">
                               +{dayJobs.length - 3} more
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : viewMode === 'month' ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Schedule</CardTitle>
+                <CardDescription>{format(selectedDate, 'MMMM yyyy')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const date = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), i + 1);
+                    const dayJobs = getJobsForDate(date);
+                    const isToday = isSameDay(date, new Date());
+                    const isCurrentMonth = date.getMonth() === selectedDate.getMonth();
+
+                    if (!isCurrentMonth) return null;
+
+                    return (
+                      <div key={i} className="min-h-24 border rounded-lg p-2">
+                        <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                          {format(date, 'd')}
+                        </div>
+                        <div className="space-y-1">
+                          {dayJobs.slice(0, 2).map((job) => {
+                            const client = clients.find(c => c.id === job.clientId);
+                            return (
+                              <div
+                                key={job.id}
+                                className="text-xs p-1 bg-blue-100 text-blue-800 rounded cursor-pointer hover:bg-blue-200 truncate"
+                                onClick={() => setSelectedJob(job)}
+                              >
+                                <div className="font-medium truncate">{job.title}</div>
+                                <div className="text-xs opacity-75 truncate">{client?.name}</div>
+                              </div>
+                            );
+                          })}
+                          {dayJobs.length > 2 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{dayJobs.length - 2} more
                             </div>
                           )}
                         </div>
@@ -582,6 +490,7 @@ export default function JobSchedulingPage() {
                 </div>
               </CardContent>
             </Card>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -596,21 +505,46 @@ export default function JobSchedulingPage() {
               {teamMembers.map((member) => {
                 const availability = calculateAvailability[member.id];
                 const isAvailable = availability?.available ?? true;
+                const utilization = availability?.utilization ?? 0;
 
                 return (
-                  <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
-                      <div>
-                        <div className="font-medium text-sm">{member.name}</div>
-                        <div className="text-xs text-muted-foreground">{member.role}</div>
+                  <div key={member.id} className="p-3 border rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div>
+                          <div className="font-medium text-sm">{member.name}</div>
+                          <div className="text-xs text-muted-foreground">{member.role}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground">Utilization</div>
+                        <div className="text-sm font-medium">{utilization}%</div>
                       </div>
                     </div>
-                    {!isAvailable && availability?.conflicts.length > 0 && (
-                      <div className="text-xs text-orange-600">
-                        {availability.conflicts.length} conflict{availability.conflicts.length > 1 ? 's' : ''}
-                      </div>
-                    )}
+
+                    <div className="space-y-1">
+                      <Progress value={utilization} className="h-2" />
+                      {!isAvailable && availability?.conflicts.length > 0 && (
+                        <div className="text-xs text-orange-600">
+                          {availability.conflicts.length} conflict{availability.conflicts.length > 1 ? 's' : ''} on {format(selectedDate, 'MMM dd')}
+                        </div>
+                      )}
+                      {availability?.conflicts.length > 0 && (
+                        <div className="space-y-1">
+                          {availability.conflicts.slice(0, 2).map((conflict) => (
+                            <div key={conflict.id} className="text-xs text-muted-foreground">
+                              • {conflict.title}
+                            </div>
+                          ))}
+                          {availability.conflicts.length > 2 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{availability.conflicts.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -752,6 +686,142 @@ export default function JobSchedulingPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Scheduling Dialog */}
+      <Dialog open={showSchedulingDialog} onOpenChange={setShowSchedulingDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Schedule Job</DialogTitle>
+            <DialogDescription>
+              Set scheduling dates and assign team members to jobs
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Select Job</Label>
+                <Select value={schedulingJob?.id || ''} onValueChange={(jobId) => {
+                  const job = schedulableJobs.find(j => j.id === jobId);
+                  setSchedulingJob(job || null);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a job to schedule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schedulableJobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.title} - {clients.find(c => c.id === job.clientId)?.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={schedulingJob?.status || 'Planned'} onValueChange={(status: JobStatus) => {
+                  if (schedulingJob) {
+                    setSchedulingJob({ ...schedulingJob, status });
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Planned">Planned</SelectItem>
+                    <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {schedulingJob && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Start Date & Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={schedulingJob.scheduledStartDate ? format(schedulingJob.scheduledStartDate, "yyyy-MM-dd'T'HH:mm") : ''}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : undefined;
+                        setSchedulingJob({ ...schedulingJob, scheduledStartDate: date });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>End Date & Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={schedulingJob.scheduledEndDate ? format(schedulingJob.scheduledEndDate, "yyyy-MM-dd'T'HH:mm") : ''}
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : undefined;
+                        setSchedulingJob({ ...schedulingJob, scheduledEndDate: date });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Assigned Team Members</Label>
+                  <div className="mt-2 space-y-2">
+                    {teamMembers.map((member) => {
+                      const isAssigned = schedulingJob.assignedTeam?.includes(member.id) || false;
+                      return (
+                        <div key={member.id} className="flex items-center justify-between p-2 border rounded">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={(e) => {
+                                const action = e.target.checked ? 'add' : 'remove';
+                                handleAssignTeamMember(schedulingJob.id, member.id, action);
+                                // Update local state immediately for UI feedback
+                                const currentTeam = schedulingJob.assignedTeam || [];
+                                const updatedTeam = action === 'add'
+                                  ? [...currentTeam, member.id]
+                                  : currentTeam.filter(id => id !== member.id);
+                                setSchedulingJob({ ...schedulingJob, assignedTeam: updatedTeam });
+                              }}
+                            />
+                            <span>{member.name}</span>
+                            <Badge variant="secondary" className="text-xs">{member.role}</Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {member.hourlyRate} CHF/h
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => {
+                    setShowSchedulingDialog(false);
+                    setSchedulingJob(null);
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    if (schedulingJob) {
+                      handleSaveScheduling({
+                        scheduledStartDate: schedulingJob.scheduledStartDate,
+                        scheduledEndDate: schedulingJob.scheduledEndDate,
+                        status: schedulingJob.status
+                      });
+                    }
+                  }}>
+                    Save Schedule
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

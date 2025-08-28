@@ -425,6 +425,51 @@ export class JobService {
     mockJobs[jobIndex] = updatedJob;
     return updatedJob;
   }
+
+  static async assignTeamMember(jobId: string, memberId: string, action: 'add' | 'remove' = 'add'): Promise<Job | null> {
+    await delay();
+    const jobIndex = mockJobs.findIndex(job => job.id === jobId);
+    if (jobIndex === -1) return null;
+
+    const job = mockJobs[jobIndex];
+    const currentTeam = job.assignedTeam || [];
+
+    let updatedTeam: string[];
+    if (action === 'add') {
+      updatedTeam = currentTeam.includes(memberId) ? currentTeam : [...currentTeam, memberId];
+    } else {
+      updatedTeam = currentTeam.filter(id => id !== memberId);
+    }
+
+    const updatedJob: Job = {
+      ...job,
+      assignedTeam: updatedTeam,
+      updatedAt: new Date()
+    };
+
+    mockJobs[jobIndex] = updatedJob;
+    return updatedJob;
+  }
+
+  static async updateScheduling(jobId: string, data: {
+    scheduledStartDate?: Date;
+    scheduledEndDate?: Date;
+    status?: JobStatus;
+  }): Promise<Job | null> {
+    await delay();
+    const jobIndex = mockJobs.findIndex(job => job.id === jobId);
+    if (jobIndex === -1) return null;
+
+    const job = mockJobs[jobIndex];
+    const updatedJob: Job = {
+      ...job,
+      ...data,
+      updatedAt: new Date()
+    };
+
+    mockJobs[jobIndex] = updatedJob;
+    return updatedJob;
+  }
 }
 
 // Task services

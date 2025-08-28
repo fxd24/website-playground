@@ -55,6 +55,8 @@ interface AppContextType {
     priority?: 'low' | 'medium' | 'high' | 'urgent';
   }) => Promise<Job>;
   updateJobStatus: (id: string, status: JobStatus) => Promise<Job | null>;
+  assignTeamMember: (jobId: string, memberId: string, action?: 'add' | 'remove') => Promise<Job | null>;
+  updateJobScheduling: (jobId: string, data: { scheduledStartDate?: Date; scheduledEndDate?: Date; status?: JobStatus }) => Promise<Job | null>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<Task | null>;
   createInvoiceFromJob: (jobId: string, data?: {
     lines?: any[];
@@ -341,6 +343,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return updatedJob;
   };
 
+  const assignTeamMember = async (jobId: string, memberId: string, action: 'add' | 'remove' = 'add') => {
+    const updatedJob = await JobService.assignTeamMember(jobId, memberId, action);
+    if (updatedJob) {
+      setJobs(prev => prev.map(job =>
+        job.id === jobId ? updatedJob : job
+      ));
+    }
+    return updatedJob;
+  };
+
+  const updateJobScheduling = async (jobId: string, data: { scheduledStartDate?: Date; scheduledEndDate?: Date; status?: JobStatus }) => {
+    const updatedJob = await JobService.updateScheduling(jobId, data);
+    if (updatedJob) {
+      setJobs(prev => prev.map(job =>
+        job.id === jobId ? updatedJob : job
+      ));
+    }
+    return updatedJob;
+  };
+
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     // Find the job that contains this task
     const jobWithTask = jobs.find(job => job.tasks.some(task => task.id === taskId));
@@ -500,6 +522,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateQuoteStatus,
     createJobFromQuote,
     updateJobStatus,
+    assignTeamMember,
+    updateJobScheduling,
     updateTask,
     createInvoiceFromJob,
     updateInvoiceStatus,
