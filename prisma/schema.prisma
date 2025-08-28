@@ -1,0 +1,682 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  Owner
+  Manager
+  Technician
+  Accountant
+  Subcontractor
+  ReadOnly
+}
+
+enum Language {
+  DE
+  FR
+  IT
+  EN
+}
+
+enum ClientType {
+  individual
+  company
+}
+
+enum QuoteStatus {
+  Draft
+  UnderReview
+  Sent
+  Viewed
+  Accepted
+  Rejected
+  Expired
+}
+
+enum JobStatus {
+  Planned
+  Scheduled
+  InProgress
+  Blocked
+  Completed
+  Archived
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+  blocked
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum POStatus {
+  Draft
+  Ordered
+  Confirmed
+  Shipped
+  Delivered
+  Inspected
+  Closed
+  Claimed
+}
+
+enum InvoiceStatus {
+  Draft
+  Issued
+  PartiallyPaid
+  Paid
+  Overdue
+  WrittenOff
+}
+
+enum PaymentMethod {
+  bank_transfer
+  cash
+  credit_card
+  check
+  other
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum MediaType {
+  photo
+  document
+  voice
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum TeamMemberStatus {
+  active
+  inactive
+  on_leave
+}
+
+enum CertStatus {
+  valid
+  expired
+  expiring_soon
+}
+
+enum Period {
+  week
+  month
+  quarter
+}
+
+model Address {
+  id        String @id @default(cuid())
+  street    String
+  city      String
+  postalCode String
+  country   String
+
+  // Relations
+  clients     Client[]
+  buildings   Building[]
+  suppliers   Supplier[]
+  shippingAddresses PurchaseOrder[]
+
+  @@map("addresses")
+}
+
+model Contact {
+  id      String @id @default(cuid())
+  name    String
+  email   String
+  phone   String?
+  role    String?
+
+  // Relations
+  clients   Client[]
+  buildings Building[]
+
+  @@map("contacts")
+}
+
+model Client {
+  id           String      @id @default(cuid())
+  name         String
+  type         ClientType
+  paymentTerms String
+  language     Language
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  addressId String
+  address   Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  contacts  Contact[]
+  buildings Building[]
+  quotes    Quote[]
+  jobs      Job[]
+  invoices  Invoice[]
+
+  @@index([name])
+  @@index([type])
+  @@map("clients")
+}
+
+model Building {
+  id          String   @id @default(cuid())
+  name        String
+  accessInfo  String?
+  photos      String[] // Array of photo URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  addressId String
+  address   Address  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  contacts  Contact[]
+  quotes    Quote[]
+  jobs      Job[]
+  invoices  Invoice[]
+
+  @@index([clientId])
+  @@index([name])
+  @@map("buildings")
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  name       String
+  sku        String   @unique
+  description String
+  category   String
+  unit       String
+  cost       Decimal  @db.Decimal(10, 2)
+  markup     Decimal  @db.Decimal(5, 4)
+  price      Decimal  @db.Decimal(10, 2)
+
+  // Relations
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  quoteLines       QuoteLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@index([sku])
+  @@index([category])
+  @@index([supplierId])
+  @@map("products")
+}
+
+model Quote {
+  id           String      @id @default(cuid())
+  status       QuoteStatus @default(Draft)
+  subtotal     Decimal     @db.Decimal(12, 2)
+  taxRate      Decimal     @db.Decimal(5, 4)
+  taxAmount    Decimal     @db.Decimal(12, 2)
+  total        Decimal     @db.Decimal(12, 2)
+  validityDays Int
+  notes        String?
+  internalNotes String?
+  attachments  String[]    // Array of attachment URLs
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  sentAt       DateTime?
+  viewedAt     DateTime?
+  acceptedAt   DateTime?
+  rejectedAt   DateTime?
+  rejectionReason String?
+
+  // Relations
+  clientId   String?
+  client     Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  buildingId String?
+  building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  lines      QuoteLine[]
+  job        Job?
+
+  captureSessions CaptureSession[]
+
+  @@index([clientId])
+  @@index([buildingId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id          String  @id @default(cuid())
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(12, 2)
+  description String?
+  notes       String?
+
+  // Relations
+  quoteId   String
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId])
+  @@index([productId])
+  @@map("quote_lines")
+}
+
+model Job {
+  id                   String    @id @default(cuid())
+  status               JobStatus @default(Planned)
+  title                String
+  description          String?
+  estimatedCost        Decimal   @db.Decimal(12, 2)
+  actualCost           Decimal?  @db.Decimal(12, 2)
+  laborHours           Decimal?  @db.Decimal(8, 2)
+  progress             Int       @default(0) // 0-100
+  priority             Priority  @default(medium)
+  assignedTeam         String[]
+  scheduledStartDate   DateTime?
+  scheduledEndDate     DateTime?
+  actualStartDate      DateTime?
+  actualEndDate        DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  quoteId    String
+  quote      Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  buildingId String?
+  building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+
+  tasks      Task[]
+  invoices   Invoice[]
+  purchaseOrders PurchaseOrder[]
+  timeEntries TimeEntry[]
+
+  @@index([quoteId])
+  @@index([clientId])
+  @@index([buildingId])
+  @@index([status])
+  @@index([priority])
+  @@map("jobs")
+}
+
+model Task {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  status       TaskStatus   @default(pending)
+  priority     TaskPriority @default(medium)
+  estimatedHours Decimal     @db.Decimal(6, 2)
+  actualHours  Decimal?     @db.Decimal(6, 2)
+  assignedTo   String?
+  blockedReason String?
+  dueDate      DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedTo])
+  @@map("tasks")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  status        InvoiceStatus @default(Draft)
+  subtotal      Decimal       @db.Decimal(12, 2)
+  taxRate       Decimal       @db.Decimal(5, 4)
+  taxAmount     Decimal       @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  paidAmount    Decimal       @db.Decimal(12, 2) @default(0)
+  balance       Decimal       @db.Decimal(12, 2)
+  dueDate       DateTime
+  issueDate     DateTime
+  paymentTerms  String
+  notes         String?
+  qrReference   String?       // Swiss QR reference
+  reminderCount Int           @default(0)
+  lastReminderDate DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  jobId      String?
+  job        Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  clientId   String
+  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  buildingId String?
+  building   Building?  @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  lines      InvoiceLine[]
+  payments   Payment[]
+
+  @@index([invoiceNumber])
+  @@index([clientId])
+  @@index([buildingId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id         String  @id @default(cuid())
+  description String
+  quantity   Decimal @db.Decimal(10, 2)
+  unitPrice  Decimal @db.Decimal(10, 2)
+  total      Decimal @db.Decimal(12, 2)
+  taxRate    Decimal @db.Decimal(5, 4)
+  taxAmount  Decimal @db.Decimal(12, 2)
+
+  // Relations
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  jobId     String?
+  job       Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([jobId])
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id           String         @id @default(cuid())
+  amount       Decimal        @db.Decimal(12, 2)
+  paymentDate  DateTime
+  paymentMethod PaymentMethod
+  reference    String?
+  notes        String?
+  status       PaymentStatus  @default(pending)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relations
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+model Supplier {
+  id              String   @id @default(cuid())
+  name            String
+  contactName     String?
+  email           String
+  phone           String?
+  website         String?
+  paymentTerms    String
+  taxId           String?
+  rating          Decimal  @db.Decimal(2, 1) // 1-5 rating
+  categories      String[] // Materials, Labor, Equipment, etc.
+  leadTime        Int      // days
+  onTimeDeliveryRate Int   // 0-100
+  qualityRating   Int      // 0-100
+  notes           String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  addressId String
+  address   Address  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  products  Product[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id                   String    @id @default(cuid())
+  poNumber             String    @unique
+  status               POStatus  @default(Draft)
+  subtotal             Decimal   @db.Decimal(12, 2)
+  taxRate              Decimal   @db.Decimal(5, 4)
+  taxAmount            Decimal   @db.Decimal(12, 2)
+  total                Decimal   @db.Decimal(12, 2)
+  shippingCost         Decimal?  @db.Decimal(10, 2)
+  discount             Decimal?  @db.Decimal(10, 2)
+  finalTotal           Decimal   @db.Decimal(12, 2)
+  orderDate            DateTime
+  requestedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  paymentTerms         String
+  notes                String?
+  priority             Priority  @default(medium)
+  createdBy            String
+  approvedBy           String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  shippingAddressId String?
+  shippingAddress Address? @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  lines      PurchaseOrderLine[]
+
+  @@index([poNumber])
+  @@index([jobId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([priority])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id          String  @id @default(cuid())
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(12, 2)
+  taxRate     Decimal @db.Decimal(5, 4)
+  taxAmount   Decimal @db.Decimal(12, 2)
+  notes       String?
+
+  // Relations
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_lines")
+}
+
+model TeamMember {
+  id         String           @id @default(cuid())
+  name       String
+  email      String           @unique
+  phone      String?
+  role       Role
+  photo      String?
+  hourlyRate Decimal          @db.Decimal(8, 2)
+  skills     String[]
+  availability Json           // { monday: boolean, tuesday: boolean, ... }
+  hireDate   DateTime
+  status     TeamMemberStatus @default(active)
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  // Relations
+  addressId String?
+  address   Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  emergencyContact Json?      // { name: string, phone: string, relationship: string }
+  certifications  Certification[]
+  timeEntries     TimeEntry[]
+  performance     TeamPerformance[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("team_members")
+}
+
+model Certification {
+  id             String     @id @default(cuid())
+  name           String
+  expiryDate     DateTime
+  issuingBody    String
+  status         CertStatus
+
+  // Relations
+  teamMemberId   String
+  teamMember     TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@index([teamMemberId])
+  @@index([expiryDate])
+  @@map("certifications")
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  date        DateTime
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Decimal? @db.Decimal(6, 2) // in hours
+  description String?
+  billable    Boolean  @default(true)
+  approved    Boolean  @default(false)
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  jobId        String
+  job          Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([teamMemberId])
+  @@index([jobId])
+  @@index([date])
+  @@index([billable])
+  @@index([approved])
+  @@map("time_entries")
+}
+
+model TeamPerformance {
+  id                   String  @id @default(cuid())
+  period               Period
+  totalHours           Decimal @db.Decimal(8, 2)
+  billableHours        Decimal @db.Decimal(8, 2)
+  jobsCompleted        Int
+  averageJobCompletionTime Decimal @db.Decimal(6, 2)
+  customerSatisfaction Decimal @db.Decimal(2, 1)
+  qualityRating        Decimal @db.Decimal(2, 1)
+  utilizationRate      Int     // 0-100
+  overtimeHours        Decimal @db.Decimal(6, 2)
+
+  // Relations
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamMemberId, period])
+  @@index([teamMemberId])
+  @@map("team_performance")
+}
+
+model Media {
+  id         String     @id @default(cuid())
+  type       MediaType
+  url        String
+  filename   String
+  size       Int        // in bytes
+  uploadedAt DateTime   @default(now())
+  metadata   Json?      // { exif?: any, transcription?: string, coordinates?: { lat: number, lng: number } }
+
+  // Relations
+  captureSessions CaptureSession[]
+
+  @@index([type])
+  @@index([uploadedAt])
+  @@map("media")
+}
+
+model CaptureSession {
+  id         String   @id @default(cuid())
+  notes      String[]
+  createdAt  DateTime @default(now())
+
+  // Relations
+  quoteId    String
+  quote      Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  media      Media[]
+  measurements Measurement[]
+
+  @@index([quoteId])
+  @@map("capture_sessions")
+}
+
+model Measurement {
+  id       String  @id @default(cuid())
+  type     String
+  value    Decimal @db.Decimal(10, 2)
+  unit     String
+  notes    String?
+
+  // Relations
+  captureSessionId String
+  captureSession   CaptureSession @relation(fields: [captureSessionId], references: [id], onDelete: Cascade)
+
+  @@index([captureSessionId])
+  @@index([type])
+  @@map("measurements")
+}
+
+model EventLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  userId     String?
+  agentId    String?
+  timestamp  DateTime @default(now())
+  before     Json?
+  after      Json?
+  metadata   Json?
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([agentId])
+  @@map("event_logs")
+}
