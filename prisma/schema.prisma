@@ -8,7 +8,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -143,6 +142,7 @@ model Address {
   buildings   Building[]
   suppliers   Supplier[]
   shippingAddresses PurchaseOrder[]
+  teamMembers TeamMember[]
 
   @@map("addresses")
 }
@@ -305,7 +305,7 @@ model Job {
   updatedAt            DateTime  @updatedAt
 
   // Relations
-  quoteId    String
+  quoteId    String    @unique // Make this unique for one-to-one relation
   quote      Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   clientId   String
   client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -313,7 +313,8 @@ model Job {
   building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
 
   tasks      Task[]
-  invoices   Invoice[]
+  invoiceLines InvoiceLine[]
+  invoices   Invoice[] // Add invoices relation
   purchaseOrders PurchaseOrder[]
   timeEntries TimeEntry[]
 
@@ -342,6 +343,9 @@ model Task {
   // Relations
   jobId String
   job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy TeamMember? @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedToMember TeamMember? @relation("TaskAssignedTo", fields: [assignedTo], references: [id], onDelete: SetNull)
 
   @@index([jobId])
   @@index([status])
@@ -542,6 +546,8 @@ model TeamMember {
   certifications  Certification[]
   timeEntries     TimeEntry[]
   performance     TeamPerformance[]
+  createdTasks    Task[]       @relation("TaskCreatedBy")
+  assignedTasks   Task[]       @relation("TaskAssignedTo")
 
   @@index([email])
   @@index([role])
