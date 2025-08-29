@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Client, Building, Product, Quote, QuoteStatus, Role, Job, Task, JobStatus, Invoice, InvoiceStatus, Supplier, PurchaseOrder, TeamMember, TimeEntry, TeamPerformance } from './types';
 import { ClientService, BuildingService, ProductService, QuoteService, JobService, TaskService, InvoiceService, SupplierService, PurchaseOrderService, TeamService, TimeTrackingService } from './mock-services';
+import { useFeatureFlags, FeatureFlagKey } from '@/hooks/use-feature-flag';
+import { featureFlagStore } from './feature-flag-store';
 
 interface AppContextType {
   // Data
@@ -97,6 +99,10 @@ interface AppContextType {
   // UI state
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
+
+  // Feature flags
+  featureFlags: Record<FeatureFlagKey, boolean>;
+  isFeatureFlagsLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -136,6 +142,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     role: 'Technician' as Role,
     email: 'john.technician@company.com'
   };
+
+  // Feature flags - use local store for persistence
+  const [featureFlags, setFeatureFlags] = useState<Record<FeatureFlagKey, boolean>>(() => 
+    featureFlagStore.getFlags()
+  );
+  const [isFeatureFlagsLoading, setIsFeatureFlagsLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Handle hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Subscribe to feature flag changes
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const unsubscribe = featureFlagStore.subscribe((flags) => {
+      setFeatureFlags(flags);
+    });
+    return unsubscribe;
+  }, [isClient]);
 
   // Load initial data
   useEffect(() => {
@@ -538,7 +566,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getTeamPerformance,
     currentUser,
     sidebarCollapsed,
-    setSidebarCollapsed
+    setSidebarCollapsed,
+    featureFlags,
+    isFeatureFlagsLoading
   };
 
   return (

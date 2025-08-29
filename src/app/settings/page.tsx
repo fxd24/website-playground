@@ -28,6 +28,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { FeatureFlagManager } from "@/components/feature-flag-manager";
 
 export default function SettingsPage() {
   const [notifications, setNotifications] = useState({
@@ -65,12 +66,13 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="company" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
@@ -600,6 +602,10 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="features" className="space-y-6">
+          <FeatureFlagManager />
         </TabsContent>
 
         <TabsContent value="system" className="space-y-6">

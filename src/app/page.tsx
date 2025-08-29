@@ -6,6 +6,7 @@ import { FileText, Wrench, Users, AlertTriangle, TrendingUp } from "lucide-react
 import Link from "next/link";
 import { useApp } from "@/lib/context";
 import { motion } from "framer-motion";
+import { QuickFeatureToggle } from "@/components/quick-feature-toggle";
 
 export default function Dashboard() {
   const { quotes, clients, isLoadingQuotes, isLoadingClients } = useApp();
@@ -171,39 +172,43 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest quotes and updates
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {quotes.slice(0, 5).map((quote) => (
-              <Link key={quote.id} href={`/quotes/${quote.id}`}>
-                <div className="flex items-center space-x-4 hover:bg-muted/50 rounded-lg p-3 cursor-pointer transition-colors">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                    <FileText className="h-4 w-4" />
+      {/* Feature Toggles - Quick Access */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>
+              Latest quotes and updates
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {quotes.slice(0, 5).map((quote) => (
+                <Link key={quote.id} href={`/quotes/${quote.id}`}>
+                  <div className="flex items-center space-x-4 hover:bg-muted/50 rounded-lg p-3 cursor-pointer transition-colors">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        Quote #{quote.id.split('-')[1]} - {quote.status}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Created {quote.createdAt.toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-sm font-medium">
+                      CHF {quote.total.toLocaleString()}
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      Quote #{quote.id.split('-')[1]} - {quote.status}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Created {quote.createdAt.toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="text-sm font-medium">
-                    CHF {quote.total.toLocaleString()}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <QuickFeatureToggle />
+      </div>
     </div>
   );
 }

@@ -29,6 +29,9 @@ import {
 import { useApp } from "@/lib/context";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { FEATURE_FLAGS, FEATURE_FLAG_CONFIG } from "@/lib/feature-flags";
+import { useFeatureFlag } from "@/hooks/use-feature-flag-store";
+import { useState, useEffect } from "react";
 
 const mainNavItems = [
   {
@@ -96,10 +99,23 @@ const managementNavItems = [
   },
 ];
 
-const otherNavItems: typeof managementNavItems = [];
+const otherNavItems: typeof managementNavItems = [
+  {
+    title: "Feature Toggles",
+    url: "#feature-toggles",
+    icon: Settings,
+  },
+];
 
 export function AppSidebar() {
   const { currentUser, sidebarCollapsed } = useApp();
+  const { value: purchaseOrdersEnabled } = useFeatureFlag(FEATURE_FLAGS.PURCHASE_ORDERS_ENABLED);
+  const [isClient, setIsClient] = useState(false);
+
+  // Handle hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   return (
     <Sidebar variant="floating" className="border-r">
@@ -141,16 +157,25 @@ export function AppSidebar() {
           <SidebarGroupLabel>Main</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {mainNavItems
+                .filter((item) => {
+                  // Filter out Purchase Orders if feature flag is disabled
+                  if (item.title === "Purchase Orders") {
+                    // Use default value during SSR, then client value after hydration
+                    return isClient ? purchaseOrdersEnabled : FEATURE_FLAG_CONFIG[FEATURE_FLAGS.PURCHASE_ORDERS_ENABLED].defaultValue;
+                  }
+                  return true;
+                })
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
