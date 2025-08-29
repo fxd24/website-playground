@@ -32,6 +32,7 @@ import Link from "next/link";
 import { FEATURE_FLAGS, FEATURE_FLAG_CONFIG } from "@/lib/feature-flags";
 import { useFeatureFlag } from "@/hooks/use-feature-flag-store";
 import { useState, useEffect } from "react";
+import { SidebarFeatureToggles } from "./sidebar-feature-toggles";
 
 const mainNavItems = [
   {
@@ -99,13 +100,7 @@ const managementNavItems = [
   },
 ];
 
-const otherNavItems: typeof managementNavItems = [
-  {
-    title: "Feature Toggles",
-    url: "#feature-toggles",
-    icon: Settings,
-  },
-];
+const otherNavItems: typeof managementNavItems = [];
 
 export function AppSidebar() {
   const { currentUser, sidebarCollapsed } = useApp();
@@ -199,22 +194,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Other */}
+        {/* Feature Toggles */}
         <SidebarGroup>
-          <SidebarGroupLabel>Other</SidebarGroupLabel>
+          <SidebarGroupLabel>Features</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {otherNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <SidebarFeatureToggles isExpanded={!sidebarCollapsed} />
           </SidebarGroupContent>
         </SidebarGroup>
 
